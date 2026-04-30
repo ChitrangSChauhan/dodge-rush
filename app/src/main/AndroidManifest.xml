@@ -1,21 +1,22 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application
-        android:allowBackup="true"
-        android:label="Dodge Rush"
-        android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
+    android:allowBackup="true"
+    android:label="Dodge Rush"
+    android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
 
-        <activity
-            android:name=".MainActivity"
-            android:exported="true">
+    <activity
+        android:name=".MainActivity"
+        android:exported="true"
+        android:screenOrientation="portrait">
 
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
+        <intent-filter>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent-filter>
 
-        </activity>
+    </activity>
 
-    </application>
+</application>
 
 </manifest>
