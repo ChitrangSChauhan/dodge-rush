@@ -29,7 +29,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private var shakeTime = 0
     private var shakeIntensity = 0f
 
-    // lane tracking (IMPORTANT FIX)
+    // lane tracking
     private val laneOccupied = BooleanArray(3) { false }
 
     init {
@@ -92,32 +92,34 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
         player.update(width)
 
-        // RESET lane tracking
+        // reset lane tracking
         laneOccupied.fill(false)
 
         // mark occupied lanes
-        obstacles.forEach {
-            if (it.y < height) {
-                laneOccupied[it.lane] = true
+        for (obs in obstacles) {
+            if (obs.y < height) {
+                laneOccupied[obs.lane] = true
             }
         }
 
-        // spawn obstacle ONLY if lane free
+        // spawn obstacle in free lane
         if (Math.random() < 0.05) {
             val freeLanes = (0..2).filter { !laneOccupied[it] }
             if (freeLanes.isNotEmpty()) {
+                val lane = freeLanes[(Math.random() * freeLanes.size).toInt()]
                 val obs = Obstacle()
-                obs.lane = freeLanes.random()
+                obs.lane = lane
                 obstacles.add(obs)
             }
         }
 
-        // spawn coin ONLY in free lanes
+        // spawn coin in free lane
         if (Math.random() < 0.02) {
             val freeLanes = (0..2).filter { !laneOccupied[it] }
             if (freeLanes.isNotEmpty()) {
+                val lane = freeLanes[(Math.random() * freeLanes.size).toInt()]
                 val coin = Coin()
-                coin.lane = freeLanes.random()
+                coin.lane = lane
                 coins.add(coin)
             }
         }
@@ -126,10 +128,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         obstacles.forEach { it.update(gameSpeed, width) }
         coins.forEach { it.update(gameSpeed) }
 
-        // remove off-screen obstacles
+        // remove off screen
         obstacles.removeAll { it.y > height }
-
-        // remove off-screen coins
         coins.removeAll { it.y > height }
 
         // collision
@@ -154,9 +154,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private fun drawGame(canvas: Canvas) {
 
+        // FIXED shake (no .random on float range)
         if (shakeTime > 0) {
-            val dx = (-shakeIntensity..shakeIntensity).random()
-            val dy = (-shakeIntensity..shakeIntensity).random()
+            val dx = (Math.random() * shakeIntensity * 2 - shakeIntensity).toFloat()
+            val dy = (Math.random() * shakeIntensity * 2 - shakeIntensity).toFloat()
             canvas.translate(dx, dy)
             shakeTime--
         }
@@ -178,7 +179,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
             GameState.PLAYING -> {
 
-                // road
                 paint.color = Color.DKGRAY
                 canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
 
@@ -209,6 +209,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
                 canvas.drawText("Tap to Restart", width / 2f, 800f, paint)
             }
+
+            // FIXED missing case
+            GameState.SHOP -> {
+                paint.color = Color.WHITE
+                paint.textSize = 70f
+                paint.textAlign = Paint.Align.CENTER
+
+                canvas.drawText("SHOP (Coming Soon)", width / 2f, 400f, paint)
+                canvas.drawText("Tap to go back", width / 2f, 600f, paint)
+            }
         }
     }
 
@@ -216,6 +226,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         if (event.action != MotionEvent.ACTION_DOWN) return true
 
         when (gameState) {
+
             GameState.START -> startGame()
 
             GameState.PLAYING -> {
@@ -224,6 +235,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             }
 
             GameState.GAME_OVER -> startGame()
+
+            // FIXED missing case
+            GameState.SHOP -> {
+                gameState = GameState.START
+            }
         }
 
         return true
