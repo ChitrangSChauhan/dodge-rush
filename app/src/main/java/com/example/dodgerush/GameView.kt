@@ -125,8 +125,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
-        running = false
+    running = false
+    try {
+        gameThread?.join()
+    } catch (e: Exception) {
+        e.printStackTrace()
     }
+}
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
 }
