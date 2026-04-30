@@ -13,24 +13,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private var gameState = GameState.START
 
-    private val gameData = GameData(context)
-    private val player = Player(0f, 1400f, gameData)
-
-    private val obstacles = mutableListOf<Obstacle>()
-    private val coins = mutableListOf<Coin>()
-    private val particles = mutableListOf<Particle>()
+    private val player = Player(500f, 1400f)
+    private val obstacles: MutableList<Obstacle> = mutableListOf()
 
     private var score = 0
-    private var coinScore = 0
-
-    private var gameSpeed = 15f
-    private var speedIncrease = 0.01f
-
-    private var shakeTime = 0
-    private var shakeIntensity = 0f
-
-    // lane tracking
-    private val laneOccupied = BooleanArray(3) { false }
+    private var highScore = 0
 
     init {
         holder.addCallback(this)
@@ -39,7 +26,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         running = true
-        thread = Thread { gameLoop() }
+        thread = Thread {
+            gameLoop()
+        }
         thread?.start()
     }
 
@@ -60,194 +49,87 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private fun startGame() {
         obstacles.clear()
-        coins.clear()
-        particles.clear()
-
-        laneOccupied.fill(false)
-
         score = 0
-        coinScore = 0
-        gameSpeed = 15f
-
+        player.x = width / 2f
         gameState = GameState.PLAYING
     }
 
     private fun gameOver() {
         gameState = GameState.GAME_OVER
-        gameData.addCoins(coinScore)
-
-        shakeTime = 20
-        shakeIntensity = 20f
-
-        repeat(20) {
-            particles.add(Particle(player.x, player.y))
-        }
+        if (score > highScore) highScore = score
     }
 
     private fun update() {
         if (gameState != GameState.PLAYING) return
 
         score++
-        gameSpeed += speedIncrease * gameData.getSpeedLevel()
 
-        player.update(width)
+        if (Math.random() < 0.04) {
+            obstacles.add(Obstacle())
+        }
 
-        // reset lane tracking
-        laneOccupied.fill(false)
+        obstacles.forEach { it.update() }
 
-        // mark occupied lanes
         for (obs in obstacles) {
-            if (obs.y < height) {
-                laneOccupied[obs.lane] = true
-            }
-        }
-
-        // spawn obstacle in free lane
-        if (Math.random() < 0.05) {
-            val freeLanes = (0..2).filter { !laneOccupied[it] }
-            if (freeLanes.isNotEmpty()) {
-                val lane = freeLanes[(Math.random() * freeLanes.size).toInt()]
-                val obs = Obstacle()
-                obs.lane = lane
-                obstacles.add(obs)
-            }
-        }
-
-        // spawn coin in free lane
-        if (Math.random() < 0.02) {
-            val freeLanes = (0..2).filter { !laneOccupied[it] }
-            if (freeLanes.isNotEmpty()) {
-                val lane = freeLanes[(Math.random() * freeLanes.size).toInt()]
-                val coin = Coin()
-                coin.lane = lane
-                coins.add(coin)
-            }
-        }
-
-        // update objects
-        obstacles.forEach { it.update(gameSpeed, width) }
-        coins.forEach { it.update(gameSpeed) }
-
-        // remove off screen
-        obstacles.removeAll { it.y > height }
-        coins.removeAll { it.y > height }
-
-        // collision
-        for (obs in obstacles) {
-            if (RectF.intersects(player.rect(), obs.rect(width))) {
+            if (RectF.intersects(player.rect(), obs.rect())) {
                 gameOver()
             }
         }
-
-        // coin collection
-        coins.removeAll {
-            if (RectF.intersects(player.rect(), it.rect(width))) {
-                coinScore++
-                true
-            } else false
-        }
-
-        // particles
-        particles.forEach { it.update() }
-        particles.removeAll { !it.isAlive() }
     }
 
     private fun drawGame(canvas: Canvas) {
-
-        // FIXED shake (no .random on float range)
-        if (shakeTime > 0) {
-            val dx = (Math.random() * shakeIntensity * 2 - shakeIntensity).toFloat()
-            val dy = (Math.random() * shakeIntensity * 2 - shakeIntensity).toFloat()
-            canvas.translate(dx, dy)
-            shakeTime--
-        }
+        canvas.drawColor(Color.BLACK)
 
         val paint = Paint()
-
-        canvas.drawColor(Color.BLACK)
+        paint.color = Color.WHITE
+        paint.textSize = 60f
+        paint.textAlign = Paint.Align.CENTER
 
         when (gameState) {
 
             GameState.START -> {
-                paint.color = Color.WHITE
-                paint.textSize = 80f
-                paint.textAlign = Paint.Align.CENTER
-
-                canvas.drawText("DODGE RUSH", width / 2f, 400f, paint)
-                canvas.drawText("Tap to Start", width / 2f, 600f, paint)
+                canvas.drawText("DODGE RUSH", width / 2f, height / 2f - 100, paint)
+                canvas.drawText("Tap to Start", width / 2f, height / 2f, paint)
             }
 
             GameState.PLAYING -> {
-
-                paint.color = Color.DKGRAY
-                canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
-
-                val laneWidth = width / 3f
-                paint.color = Color.WHITE
-                canvas.drawLine(laneWidth, 0f, laneWidth, height.toFloat(), paint)
-                canvas.drawLine(laneWidth * 2, 0f, laneWidth * 2, height.toFloat(), paint)
-
                 player.draw(canvas)
+                obstacles.forEach { it.draw(canvas) }
 
-                obstacles.forEach { it.draw(canvas, width) }
-                coins.forEach { it.draw(canvas, width) }
-                particles.forEach { it.draw(canvas) }
-
-                paint.textSize = 50f
+                paint.textAlign = Paint.Align.LEFT
                 canvas.drawText("Score: $score", 50f, 80f, paint)
-                canvas.drawText("Coins: $coinScore", 50f, 140f, paint)
             }
 
             GameState.GAME_OVER -> {
-                paint.color = Color.WHITE
-                paint.textSize = 80f
-                paint.textAlign = Paint.Align.CENTER
-
-                canvas.drawText("GAME OVER", width / 2f, 400f, paint)
-                canvas.drawText("Score: $score", width / 2f, 500f, paint)
-                canvas.drawText("Coins: ${gameData.getCoins()}", width / 2f, 600f, paint)
-
-                canvas.drawText("Tap to Restart", width / 2f, 800f, paint)
-            }
-
-            // FIXED missing case
-            GameState.SHOP -> {
-                paint.color = Color.WHITE
-                paint.textSize = 70f
-                paint.textAlign = Paint.Align.CENTER
-
-                canvas.drawText("SHOP (Coming Soon)", width / 2f, 400f, paint)
-                canvas.drawText("Tap to go back", width / 2f, 600f, paint)
+                canvas.drawText("GAME OVER", width / 2f, height / 2f - 100, paint)
+                canvas.drawText("Score: $score", width / 2f, height / 2f, paint)
+                canvas.drawText("High Score: $highScore", width / 2f, height / 2f + 100, paint)
+                canvas.drawText("Tap to Restart", width / 2f, height / 2f + 200, paint)
             }
         }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (event.action != MotionEvent.ACTION_DOWN) return true
-
-        when (gameState) {
-
-            GameState.START -> startGame()
-
-            GameState.PLAYING -> {
-                if (event.x < width / 2) player.moveLeft()
-                else player.moveRight()
-            }
-
-            GameState.GAME_OVER -> startGame()
-
-            // FIXED missing case
-            GameState.SHOP -> {
-                gameState = GameState.START
+        if (event.action == MotionEvent.ACTION_DOWN) {
+            when (gameState) {
+                GameState.START -> startGame()
+                GameState.PLAYING -> {
+                    if (event.x < width / 2) player.moveLeft()
+                    else player.moveRight(width)
+                }
+                GameState.GAME_OVER -> startGame()
             }
         }
-
         return true
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         running = false
-        thread?.join()
+        try {
+            thread?.join()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
