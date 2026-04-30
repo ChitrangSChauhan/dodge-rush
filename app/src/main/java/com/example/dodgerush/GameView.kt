@@ -13,7 +13,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private var gameState = GameState.START
 
     private val player = Player(500f, 1400f)
-    private val obstacles = mutableListOf<Obstacle>()
+    private val obstacles: MutableList<Obstacle> = mutableListOf()
 
     private var score = 0
     private var highScore = 0
