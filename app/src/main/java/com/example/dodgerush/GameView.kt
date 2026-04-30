@@ -5,11 +5,12 @@ import android.graphics.*
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
-import kotlin.concurrent.thread
 
 class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback {
 
-    private var running = true
+    private var thread: Thread? = null
+    private var running = false
+
     private var gameState = GameState.START
 
     private val player = Player(500f, 1400f)
@@ -20,15 +21,29 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     init {
         holder.addCallback(this)
+        isFocusable = true
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-        thread {
-            while (running) {
-                update()
-                drawGame()
-                Thread.sleep(16)
-            }
+        running = true
+        thread = Thread {
+            gameLoop()
+        }
+        thread?.start()
+    }
+
+    private fun gameLoop() {
+        while (running) {
+            if (!holder.surface.isValid) continue
+
+            val canvas = holder.lockCanvas() ?: continue
+
+            update()
+            drawGame(canvas)
+
+            holder.unlockCanvasAndPost(canvas)
+
+            Thread.sleep(16)
         }
     }
 
@@ -62,8 +77,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         }
     }
 
-    private fun drawGame() {
-        val canvas = holder.lockCanvas() ?: return
+    private fun drawGame(canvas: Canvas) {
         canvas.drawColor(Color.BLACK)
 
         val paint = Paint()
@@ -93,45 +107,30 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 canvas.drawText("Tap to Restart", width / 2f, height / 2f + 200, paint)
             }
         }
-
-        holder.unlockCanvasAndPost(canvas)
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-
         if (event.action == MotionEvent.ACTION_DOWN) {
-
             when (gameState) {
-
-                GameState.START -> {
-                    startGame()
-                }
-
+                GameState.START -> startGame()
                 GameState.PLAYING -> {
-                    if (event.x < width / 2) {
-                        player.moveLeft()
-                    } else {
-                        player.moveRight(width)
-                    }
+                    if (event.x < width / 2) player.moveLeft()
+                    else player.moveRight(width)
                 }
-
-                GameState.GAME_OVER -> {
-                    startGame()
-                }
+                GameState.GAME_OVER -> startGame()
             }
         }
-
         return true
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
-    running = false
-    try {
-        gameThread?.join()
-    } catch (e: Exception) {
-        e.printStackTrace()
+        running = false
+        try {
+            thread?.join()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
-}
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
 }
