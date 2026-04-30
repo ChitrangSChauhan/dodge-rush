@@ -29,15 +29,37 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private var shakeTime = 0
     private var shakeIntensity = 0f
 
+    // UI Buttons
+    private lateinit var playButton: Button
+    private lateinit var shopButton: Button
+    private lateinit var restartButton: Button
+    private lateinit var backButton: Button
+    private lateinit var upgradeButton: Button
+    private lateinit var nextCarButton: Button
+
     init {
         holder.addCallback(this)
         isFocusable = true
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
+        setupButtons()
         running = true
         thread = Thread { gameLoop() }
         thread?.start()
+    }
+
+    private fun setupButtons() {
+        val centerX = width / 2f
+
+        playButton = Button("PLAY", centerX - 200f, 800f, 400f, 120f)
+        shopButton = Button("SHOP", centerX - 200f, 950f, 400f, 120f)
+
+        restartButton = Button("RESTART", centerX - 200f, 900f, 400f, 120f)
+        backButton = Button("BACK", centerX - 200f, 1100f, 400f, 120f)
+
+        upgradeButton = Button("UPGRADE SPEED", centerX - 250f, 700f, 500f, 120f)
+        nextCarButton = Button("NEXT CAR", centerX - 200f, 900f, 400f, 120f)
     }
 
     private fun gameLoop() {
@@ -69,13 +91,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private fun gameOver() {
         gameState = GameState.GAME_OVER
-
         gameData.addCoins(coinScore)
 
         shakeTime = 20
         shakeIntensity = 20f
 
-        for (i in 0..20) {
+        repeat(20) {
             particles.add(Particle(player.x, player.y))
         }
     }
@@ -84,9 +105,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         if (gameState != GameState.PLAYING) return
 
         score++
-
-        val speedMultiplier = gameData.getSpeedLevel()
-        gameSpeed += speedIncrease * speedMultiplier
+        gameSpeed += speedIncrease * gameData.getSpeedLevel()
 
         player.update(width)
 
@@ -96,18 +115,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         obstacles.forEach { it.update(gameSpeed, width) }
         coins.forEach { it.update(gameSpeed) }
 
-        for (obs in obstacles) {
-            if (RectF.intersects(player.rect(), obs.rect(width))) {
+        obstacles.forEach {
+            if (RectF.intersects(player.rect(), it.rect(width))) {
                 gameOver()
             }
         }
 
-        for (coin in coins) {
-            if (RectF.intersects(player.rect(), coin.rect(width))) {
+        coins.removeAll {
+            if (RectF.intersects(player.rect(), it.rect(width))) {
                 coinScore++
-                shakeTime = 5
-                shakeIntensity = 5f
-            }
+                true
+            } else false
         }
 
         particles.forEach { it.update() }
@@ -116,39 +134,34 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
     private fun drawGame(canvas: Canvas) {
 
-        if (shakeTime > 0) {
-            val dx = (-shakeIntensity..shakeIntensity).random()
-            val dy = (-shakeIntensity..shakeIntensity).random()
-            canvas.translate(dx, dy)
-            shakeTime--
-        }
-
         val paint = Paint()
 
-        // Road
-        paint.color = Color.DKGRAY
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
-
-        // Lanes
-        paint.color = Color.WHITE
-        paint.strokeWidth = 8f
-        val laneWidth = width / 3f
-
-        canvas.drawLine(laneWidth, 0f, laneWidth, height.toFloat(), paint)
-        canvas.drawLine(laneWidth * 2, 0f, laneWidth * 2, height.toFloat(), paint)
+        canvas.drawColor(Color.BLACK)
 
         when (gameState) {
 
             GameState.START -> {
+                paint.color = Color.WHITE
                 paint.textSize = 80f
                 paint.textAlign = Paint.Align.CENTER
-                paint.color = Color.WHITE
 
-                canvas.drawText("DODGE RUSH", width / 2f, height / 2f, paint)
-                canvas.drawText("Tap to Start", width / 2f, height / 2f + 100, paint)
+                canvas.drawText("DODGE RUSH", width / 2f, 400f, paint)
+
+                playButton.draw(canvas)
+                shopButton.draw(canvas)
             }
 
             GameState.PLAYING -> {
+
+                // road
+                paint.color = Color.DKGRAY
+                canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
+
+                val laneWidth = width / 3f
+                paint.color = Color.WHITE
+                canvas.drawLine(laneWidth, 0f, laneWidth, height.toFloat(), paint)
+                canvas.drawLine(laneWidth * 2, 0f, laneWidth * 2, height.toFloat(), paint)
+
                 player.draw(canvas)
 
                 obstacles.forEach { it.draw(canvas, width) }
@@ -156,65 +169,95 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 particles.forEach { it.draw(canvas) }
 
                 paint.textSize = 50f
-                paint.textAlign = Paint.Align.LEFT
-                paint.color = Color.WHITE
-
                 canvas.drawText("Score: $score", 50f, 80f, paint)
                 canvas.drawText("Coins: $coinScore", 50f, 140f, paint)
             }
 
             GameState.GAME_OVER -> {
+                paint.color = Color.WHITE
                 paint.textSize = 80f
                 paint.textAlign = Paint.Align.CENTER
+
+                canvas.drawText("GAME OVER", width / 2f, 400f, paint)
+                canvas.drawText("Score: $score", width / 2f, 500f, paint)
+                canvas.drawText("Coins: ${gameData.getCoins()}", width / 2f, 600f, paint)
+
+                restartButton.draw(canvas)
+                shopButton.draw(canvas)
+            }
+
+            GameState.SHOP -> {
                 paint.color = Color.WHITE
+                paint.textSize = 70f
+                paint.textAlign = Paint.Align.CENTER
 
-                canvas.drawText("GAME OVER", width / 2f, height / 2f)
-                canvas.drawText("Score: $score", width / 2f, height / 2f + 100)
-                canvas.drawText("Coins: ${gameData.getCoins()}", width / 2f, height / 2f + 200)
+                canvas.drawText("SHOP", width / 2f, 300f, paint)
+                canvas.drawText("Coins: ${gameData.getCoins()}", width / 2f, 400f, paint)
 
-                canvas.drawText("Left: Change Car", width / 2f, height / 2f + 300)
-                canvas.drawText("Right: Upgrade Speed", width / 2f, height / 2f + 400)
+                // current car preview
+                player.draw(canvas)
+
+                nextCarButton.draw(canvas)
+                upgradeButton.draw(canvas)
+                backButton.draw(canvas)
             }
         }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        if (event.action == MotionEvent.ACTION_DOWN) {
-            when (gameState) {
-                GameState.START -> startGame()
-                GameState.PLAYING -> {
-                    if (event.x < width / 2) player.moveLeft()
-                    else player.moveRight()
+
+        if (event.action != MotionEvent.ACTION_DOWN) return true
+
+        val x = event.x
+        val y = event.y
+
+        when (gameState) {
+
+            GameState.START -> {
+                if (playButton.isClicked(x, y)) startGame()
+                if (shopButton.isClicked(x, y)) gameState = GameState.SHOP
+            }
+
+            GameState.PLAYING -> {
+                if (x < width / 2) player.moveLeft()
+                else player.moveRight()
+            }
+
+            GameState.GAME_OVER -> {
+                if (restartButton.isClicked(x, y)) startGame()
+                if (shopButton.isClicked(x, y)) gameState = GameState.SHOP
+            }
+
+            GameState.SHOP -> {
+
+                if (backButton.isClicked(x, y)) gameState = GameState.START
+
+                if (nextCarButton.isClicked(x, y)) {
+                    val next = (gameData.getSelectedCar() + 1) % 4
+                    if (gameData.isCarUnlocked(next)) {
+                        gameData.setSelectedCar(next)
+                    } else if (gameData.getCoins() >= 50) {
+                        gameData.unlockCar(next)
+                        gameData.setSelectedCar(next)
+                        gameData.addCoins(-50)
+                    }
                 }
-                GameState.GAME_OVER -> {
-                    if (event.x < width / 2) {
-                        val nextCar = (gameData.getSelectedCar() + 1) % 4
-                        if (gameData.isCarUnlocked(nextCar)) {
-                            gameData.setSelectedCar(nextCar)
-                        } else if (gameData.getCoins() >= 50) {
-                            gameData.unlockCar(nextCar)
-                            gameData.setSelectedCar(nextCar)
-                            gameData.addCoins(-50)
-                        }
-                    } else {
-                        if (gameData.getCoins() >= 30) {
-                            gameData.upgradeSpeed()
-                            gameData.addCoins(-30)
-                        }
+
+                if (upgradeButton.isClicked(x, y)) {
+                    if (gameData.getCoins() >= 30) {
+                        gameData.upgradeSpeed()
+                        gameData.addCoins(-30)
                     }
                 }
             }
         }
+
         return true
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         running = false
-        try {
-            thread?.join()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        thread?.join()
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
