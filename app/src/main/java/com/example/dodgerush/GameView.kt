@@ -29,13 +29,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     private var shakeTime = 0
     private var shakeIntensity = 0f
 
-    // UI Buttons
-    private lateinit var playButton: Button
-    private lateinit var shopButton: Button
-    private lateinit var restartButton: Button
-    private lateinit var backButton: Button
-    private lateinit var upgradeButton: Button
-    private lateinit var nextCarButton: Button
+    // lane tracking (IMPORTANT FIX)
+    private val laneOccupied = BooleanArray(3) { false }
 
     init {
         holder.addCallback(this)
@@ -43,23 +38,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-        setupButtons()
         running = true
         thread = Thread { gameLoop() }
         thread?.start()
-    }
-
-    private fun setupButtons() {
-        val centerX = width / 2f
-
-        playButton = Button("PLAY", centerX - 200f, 800f, 400f, 120f)
-        shopButton = Button("SHOP", centerX - 200f, 950f, 400f, 120f)
-
-        restartButton = Button("RESTART", centerX - 200f, 900f, 400f, 120f)
-        backButton = Button("BACK", centerX - 200f, 1100f, 400f, 120f)
-
-        upgradeButton = Button("UPGRADE SPEED", centerX - 250f, 700f, 500f, 120f)
-        nextCarButton = Button("NEXT CAR", centerX - 200f, 900f, 400f, 120f)
     }
 
     private fun gameLoop() {
@@ -81,6 +62,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
         obstacles.clear()
         coins.clear()
         particles.clear()
+
+        laneOccupied.fill(false)
 
         score = 0
         coinScore = 0
@@ -109,18 +92,54 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
 
         player.update(width)
 
-        if (Math.random() < 0.05) obstacles.add(Obstacle())
-        if (Math.random() < 0.02) coins.add(Coin())
+        // RESET lane tracking
+        laneOccupied.fill(false)
 
+        // mark occupied lanes
+        obstacles.forEach {
+            if (it.y < height) {
+                laneOccupied[it.lane] = true
+            }
+        }
+
+        // spawn obstacle ONLY if lane free
+        if (Math.random() < 0.05) {
+            val freeLanes = (0..2).filter { !laneOccupied[it] }
+            if (freeLanes.isNotEmpty()) {
+                val obs = Obstacle()
+                obs.lane = freeLanes.random()
+                obstacles.add(obs)
+            }
+        }
+
+        // spawn coin ONLY in free lanes
+        if (Math.random() < 0.02) {
+            val freeLanes = (0..2).filter { !laneOccupied[it] }
+            if (freeLanes.isNotEmpty()) {
+                val coin = Coin()
+                coin.lane = freeLanes.random()
+                coins.add(coin)
+            }
+        }
+
+        // update objects
         obstacles.forEach { it.update(gameSpeed, width) }
         coins.forEach { it.update(gameSpeed) }
 
-        obstacles.forEach {
-            if (RectF.intersects(player.rect(), it.rect(width))) {
+        // remove off-screen obstacles
+        obstacles.removeAll { it.y > height }
+
+        // remove off-screen coins
+        coins.removeAll { it.y > height }
+
+        // collision
+        for (obs in obstacles) {
+            if (RectF.intersects(player.rect(), obs.rect(width))) {
                 gameOver()
             }
         }
 
+        // coin collection
         coins.removeAll {
             if (RectF.intersects(player.rect(), it.rect(width))) {
                 coinScore++
@@ -128,11 +147,19 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
             } else false
         }
 
+        // particles
         particles.forEach { it.update() }
         particles.removeAll { !it.isAlive() }
     }
 
     private fun drawGame(canvas: Canvas) {
+
+        if (shakeTime > 0) {
+            val dx = (-shakeIntensity..shakeIntensity).random()
+            val dy = (-shakeIntensity..shakeIntensity).random()
+            canvas.translate(dx, dy)
+            shakeTime--
+        }
 
         val paint = Paint()
 
@@ -146,9 +173,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 paint.textAlign = Paint.Align.CENTER
 
                 canvas.drawText("DODGE RUSH", width / 2f, 400f, paint)
-
-                playButton.draw(canvas)
-                shopButton.draw(canvas)
+                canvas.drawText("Tap to Start", width / 2f, 600f, paint)
             }
 
             GameState.PLAYING -> {
@@ -182,74 +207,23 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback 
                 canvas.drawText("Score: $score", width / 2f, 500f, paint)
                 canvas.drawText("Coins: ${gameData.getCoins()}", width / 2f, 600f, paint)
 
-                restartButton.draw(canvas)
-                shopButton.draw(canvas)
-            }
-
-            GameState.SHOP -> {
-                paint.color = Color.WHITE
-                paint.textSize = 70f
-                paint.textAlign = Paint.Align.CENTER
-
-                canvas.drawText("SHOP", width / 2f, 300f, paint)
-                canvas.drawText("Coins: ${gameData.getCoins()}", width / 2f, 400f, paint)
-
-                // current car preview
-                player.draw(canvas)
-
-                nextCarButton.draw(canvas)
-                upgradeButton.draw(canvas)
-                backButton.draw(canvas)
+                canvas.drawText("Tap to Restart", width / 2f, 800f, paint)
             }
         }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-
         if (event.action != MotionEvent.ACTION_DOWN) return true
 
-        val x = event.x
-        val y = event.y
-
         when (gameState) {
-
-            GameState.START -> {
-                if (playButton.isClicked(x, y)) startGame()
-                if (shopButton.isClicked(x, y)) gameState = GameState.SHOP
-            }
+            GameState.START -> startGame()
 
             GameState.PLAYING -> {
-                if (x < width / 2) player.moveLeft()
+                if (event.x < width / 2) player.moveLeft()
                 else player.moveRight()
             }
 
-            GameState.GAME_OVER -> {
-                if (restartButton.isClicked(x, y)) startGame()
-                if (shopButton.isClicked(x, y)) gameState = GameState.SHOP
-            }
-
-            GameState.SHOP -> {
-
-                if (backButton.isClicked(x, y)) gameState = GameState.START
-
-                if (nextCarButton.isClicked(x, y)) {
-                    val next = (gameData.getSelectedCar() + 1) % 4
-                    if (gameData.isCarUnlocked(next)) {
-                        gameData.setSelectedCar(next)
-                    } else if (gameData.getCoins() >= 50) {
-                        gameData.unlockCar(next)
-                        gameData.setSelectedCar(next)
-                        gameData.addCoins(-50)
-                    }
-                }
-
-                if (upgradeButton.isClicked(x, y)) {
-                    if (gameData.getCoins() >= 30) {
-                        gameData.upgradeSpeed()
-                        gameData.addCoins(-30)
-                    }
-                }
-            }
+            GameState.GAME_OVER -> startGame()
         }
 
         return true
