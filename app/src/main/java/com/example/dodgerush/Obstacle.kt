@@ -1,5 +1,10 @@
 package com.example.dodgerush
 
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
+
 class Obstacle {
 
     var lane = (0..2).random()
