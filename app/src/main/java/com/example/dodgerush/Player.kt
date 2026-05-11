@@ -1,16 +1,16 @@
 package com.example.dodgerush
 
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
+
 class Player(var x: Float, var y: Float) {
 
     private var lane = 1
 
     private val width = 140f
     private val height = 220f
-
-    private val bitmap = BitmapFactory.decodeResource(
-        Resources.getSystem(),
-        android.R.drawable.sym_def_app_icon
-    )
 
     fun update(screenWidth: Int) {
         val laneWidth = screenWidth / 3f
@@ -36,6 +36,7 @@ class Player(var x: Float, var y: Float) {
 
         val paint = Paint()
 
+        // car body
         paint.color = Color.RED
         canvas.drawRoundRect(rect, 25f, 25f, paint)
 
