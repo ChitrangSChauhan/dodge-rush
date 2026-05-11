@@ -1,39 +1,67 @@
 package com.example.dodgerush
 
-import android.graphics.*
-
-class Player(var x: Float, var y: Float, private val gameData: GameData) {
-
-    private val width = 100f
-    private val height = 160f
+class Player(var x: Float, var y: Float) {
 
     private var lane = 1
-    private var targetX = x
+
+    private val width = 140f
+    private val height = 220f
+
+    private val bitmap = BitmapFactory.decodeResource(
+        Resources.getSystem(),
+        android.R.drawable.sym_def_app_icon
+    )
 
     fun update(screenWidth: Int) {
         val laneWidth = screenWidth / 3f
-        targetX = lane * laneWidth + laneWidth / 2 - width / 2
-        x += (targetX - x) * 0.2f
+        x = lane * laneWidth + laneWidth / 2 - width / 2
     }
 
-    fun moveLeft() { if (lane > 0) lane-- }
-    fun moveRight() { if (lane < 2) lane++ }
+    fun moveLeft() {
+        if (lane > 0) lane--
+    }
+
+    fun moveRight() {
+        if (lane < 2) lane++
+    }
 
     fun draw(canvas: Canvas) {
+
+        val rect = RectF(
+            x,
+            y,
+            x + width,
+            y + height
+        )
+
         val paint = Paint()
 
-        when (gameData.getSelectedCar()) {
-            0 -> paint.color = Color.RED
-            1 -> paint.color = Color.CYAN
-            2 -> paint.color = Color.MAGENTA
-            3 -> paint.color = Color.WHITE
-        }
+        paint.color = Color.RED
+        canvas.drawRoundRect(rect, 25f, 25f, paint)
 
-        canvas.drawRect(x, y, x + width, y + height, paint)
+        // windshield
+        paint.color = Color.CYAN
+        canvas.drawRoundRect(
+            x + 20,
+            y + 40,
+            x + width - 20,
+            y + 120,
+            15f,
+            15f,
+            paint
+        )
 
+        // wheels
         paint.color = Color.BLACK
-        canvas.drawRect(x + 20, y + 20, x + width - 20, y + 70, paint)
+
+        canvas.drawRect(x - 10, y + 30, x + 10, y + 80, paint)
+        canvas.drawRect(x - 10, y + 140, x + 10, y + 190, paint)
+
+        canvas.drawRect(x + width - 10, y + 30, x + width + 10, y + 80, paint)
+        canvas.drawRect(x + width - 10, y + 140, x + width + 10, y + 190, paint)
     }
 
-    fun rect(): RectF = RectF(x, y, x + width, y + height)
+    fun rect(): RectF {
+        return RectF(x, y, x + width, y + height)
+    }
 }
